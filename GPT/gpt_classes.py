@@ -7,7 +7,7 @@ class Embeddings(nn.Module):
     super().__init__()
     self.embeddings = nn.Embedding(vocab,embedding_dim)
     self.positions = nn.Embedding(position_size, embedding_dim)
-    self.norm = nn.LayerNorm(embedding_dim, eps=1e-12)
+    self.norm = nn.LayerNorm(embedding_dim, eps=1e-05)
     self.dropout = nn.Dropout()
 
   def forward(self, input_ids):
@@ -22,7 +22,10 @@ class Embeddings(nn.Module):
 
 def scaled_dot_product(q, k, v):
   dim_k = k.size(-1)
+  seq_len = k.size(1)
+  mask = torch.trill(torch.ones(seq_len, seq_len)).unsqueeze(0)
   scores = torch.bmm(q, torch.transpose(k,1,2)/dim_k) # tokens * tokens
+  scores = scores.masked_fill(mask == 0, float("-inf"))
   softed = F.softmax(scores, dim=-1) # tokens * tokens
   attn_head = torch.bmm(softed, v) #tokens*embedding_dim
   return attn_head
@@ -64,7 +67,7 @@ class FeedForward(nn.Module):
     x = self.dropout(x)
     return x
 
-class Encoder(nn.Module):
+class Decoder(nn.Module):
   def __init__(self, embedding_dim, intermediate_dim, num_attention_heads):
     super().__init__()
     self.l1 = nn.LayerNorm(embedding_dim)
@@ -73,8 +76,7 @@ class Encoder(nn.Module):
     self.feed_forward = FeedForward(embedding_dim, intermediate_dim)
 
   def forward(self, x):
-    out = self.l1(x)
-    x = x + self.attention(out)
-    x = x + self.feed_forward(self.l2(x))
+    x = self.l1(x + self.attention(x))
+    x = self.l2(x + self.feed_forward(x))
     return x
 
