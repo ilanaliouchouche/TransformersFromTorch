@@ -1,2 +1,19 @@
+
 # TransformersFromTorch
-I'm implementing Popular Transformers architecture from scratch with PyTorch, I'll will implement techniques like Sparse Attentions, Linearized Attention, and Distillation (during fine-tuning and pre-training)
+
+This project aims to implement well-known Transformer architectures using PyTorch. The primary goal is to delve deep into the internal workings of these models and provide a clean, modular implementation for each Transformer.
+
+## Progress Table
+
+| Name  | Status                  |
+|-------|-------------------------|
+| BERT  | :heavy_check_mark:      |
+| GPT   | :construction:          |
+| T5    | :x:                     |
+
+Legend:
+- :heavy_check_mark: : Implementation completed
+- :construction: : Implementation in progress
+- :x: : Not started yet
+
+
