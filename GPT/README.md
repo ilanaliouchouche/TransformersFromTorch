@@ -1,9 +1,5 @@
 # GPT Implementation with PyTorch
 
-<div align="left">
-    <img src="https://c0.lestechnophiles.com/c.clc2l.com/c/thumbnail256webp/t/D/a/Dall-E-hXSMxM.png" width="320" height="213" alt="GPT">
-</div>
-
 This repository contains an implementation of the GPT (Generative Pre-trained Transformer) model using the PyTorch library. GPT is designed to pre-train deep generative models using a transformer architecture.
 
 ## Implemented Classes
