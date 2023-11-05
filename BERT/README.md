@@ -1,9 +1,5 @@
 # BERT Implementation with PyTorch
 
-<div align="left">
-    <img src="https://i.gifer.com/9q0x.gif" width="320" height="213" alt="BERT">
-</div>
-
 This repository contains an implementation of the BERT (Bidirectional Encoder Representations from Transformers) model using the PyTorch library. BERT is designed to pre-train deep bidirectional representations from unlabeled text by jointly conditioning on both left and right context.
 
 ## Implemented Classes
