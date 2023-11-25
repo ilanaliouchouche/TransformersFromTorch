@@ -20,4 +20,3 @@ The following table provides an overview of the aspects tested for each model:
 | BERT  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 | GPT   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 | T5    | :no_entry: | :no_entry: | :no_entry: |
-
