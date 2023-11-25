@@ -9,7 +9,7 @@ This project aims to implement well-known Transformer architectures using PyTorc
 |-------|-------------------------|
 | BERT  | :heavy_check_mark:      |
 | GPT   | :heavy_check_mark:          |
-| T5    | :x:                     |
+| T5    | :construction:                     |
 
 Legend:
 - :heavy_check_mark: : Implementation completed
