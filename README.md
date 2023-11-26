@@ -14,6 +14,5 @@ This project aims to implement well-known Transformer architectures using PyTorc
 Legend:
 - :heavy_check_mark: : Implementation completed
 - :construction: : Implementation in progress
-- :x: : Not started yet
 
 
