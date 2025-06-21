@@ -1,241 +1,92 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from math import sqrt
+# flake8: noqa
 
+class GPTConfig(object):
+    vocab_size: int
+    n_layers: int
+    embedding_dim: int
+    max_ctx_len: int
+    intermediate_dim: int
+    dropout: float
+    num_attn_heads: int
 
-class Embeddings(nn.Module):
-    '''
-    Embeddings Class:
-    - This class is responsible for creating token and position embeddings.
-    - The embeddings are normalized and dropout is applied for regularization.
-    '''
-
+class Embedder(nn.Module):
     def __init__(self,
-                 vocab: int, 
-                 embedding_dim: int, 
-                 position_size: int) -> None:
-        '''
-        Constructor for the Embeddings class.
-
-        Parameters:
-            - vocab (int): The size of the vocabulary.
-            - embedding_dim (int): The dimension of the embeddings.
-            - position_size (int): The maximum position size for positional embeddings.
-        ''' 
-
+                 config: GPTConfig) -> None:
         super().__init__()
-        self.embeddings = nn.Embedding(vocab, embedding_dim)
-        self.positions = nn.Embedding(position_size, embedding_dim)
-        self.norm = nn.LayerNorm(embedding_dim, eps=1e-05)
-        self.dropout = nn.Dropout()
-
-    def forward(self, 
-                input_ids: torch.Tensor) -> torch.Tensor:
-        '''
-        Forward pass for the Embeddings class.
-
-        Parameters:
-            - input_ids (torch.Tensor): The input token IDs.
-
-        Returns:
-            - torch.Tensor: The token embeddings with position embeddings added.
-        '''
-
-        seq_length = input_ids.size(1)
-        position_ids = torch.arange(seq_length, dtype=torch.long).unsqueeze(0)
-        token_embeddings = self.embeddings(input_ids)
-        position_embeddings = self.positions(position_ids)
-        all_embeddings = token_embeddings + position_embeddings
-        all_embeddings = self.norm(all_embeddings)
-        all_embeddings = self.dropout(all_embeddings)
-        return all_embeddings  # tokens * embedding_dim
-
-
-def scaled_dot_product(q: torch.Tensor, 
-                       k: torch.Tensor, 
-                       v: torch.Tensor) -> torch.Tensor:
-    '''
-    Scaled Dot Product Function:
-    - This function calculates the attention scores and returns the attention head.
-
-    Parameters:
-        - q (torch.Tensor): The query tensor.
-        - k (torch.Tensor): The key tensor.
-        - v (torch.Tensor): The value tensor.
-
-    Returns:
-        - torch.Tensor: The attention head.
-    '''
-
-    dim_k = k.size(-1)
-    seq_len = k.size(1)
-    mask = torch.tril(torch.ones(seq_len, seq_len)).unsqueeze(0)
-    scores = torch.bmm(q, k.transpose(1, 2)) / sqrt(dim_k)
-    scores = scores.masked_fill(mask == 0, float("-inf"))
-    softed = F.softmax(scores, dim=-1)
-    attn_head = torch.bmm(softed, v)
-    return attn_head
-
-class AttentionHead(nn.Module):
-    '''
-    AttentionHead Class:
-    - Represents a single attention head.
-    - Applies linear transformations to the input, and calculates attention using scaled dot product.
-    '''
-
-    def __init__(self, 
-                 embedding_dim: int, 
-                 head_dim: int) -> None:
-        '''
-        Constructor for the AttentionHead class.
-
-        Parameters:
-            - embedding_dim (int): The dimension of the input embeddings.
-            - head_dim (int): The dimension of the attention head.
-        ''' 
-
-        super().__init__()
-        self.q = nn.Linear(embedding_dim, head_dim)
-        self.k = nn.Linear(embedding_dim, head_dim)
-        self.v = nn.Linear(embedding_dim, head_dim)
-
-    def forward(self, 
-                x: torch.Tensor) -> torch.Tensor:
-        '''
-        Forward pass for the AttentionHead class.
-
-        Parameters:
-            - x (torch.Tensor): The input embeddings.
-
-        Returns:
-            - torch.Tensor: The output tensor after applying scaled dot product attention.
-        '''
-
-        return scaled_dot_product(self.q(x), self.k(x), self.v(x))
-
-
-class MultiHeadAttention(nn.Module):
-    '''
-    MultiHeadAttention Class:
-    - Contains multiple attention heads.
-    - The outputs of the heads are concatenated and linearly transformed.
-    '''
-
-    def __init__(self, 
-                 embedding_dim: int, 
-                 num_attention_heads: int) -> None:
-        '''
-        Constructor for the MultiHeadAttention class.
-
-        Parameters:
-            - embedding_dim (int): The dimension of the input embeddings.
-            - num_attention_heads (int): The number of attention heads.
-        '''
-
-        super().__init__()
-        head_dim = embedding_dim // num_attention_heads
-        self.heads = nn.ModuleList(
-            [AttentionHead(embedding_dim, head_dim) for _ in range(num_attention_heads)]
+        self.embedding_layer = nn.Embedding(
+            config.vocab_size, config.embedding_dim
         )
-        self.fc = nn.Linear(embedding_dim, embedding_dim)
+        self.position_codes = self.get_positional_encoding(config.max_ctx_len, config.embedding_dim)
 
-    def forward(self, 
-                x: torch.Tensor) -> torch.Tensor:
-        '''
-        Forward pass for the MultiHeadAttention class.
+    @staticmethod
+    def get_positional_encoding(seq_len: int,
+                                embedding_dim: int) -> torch.Tensor:
+        pe = torch.zeros(seq_len, embedding_dim)  # (seq_len, embedding_dim)
+        position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)  # (seq_len, 1)
+        div_term = torch.exp(torch.arange(0, embedding_dim, 2).float() * (-math.log(10000.0) / embedding_dim))  # (embedding_dim/2)
 
-        Parameters:
-            - x (torch.Tensor): The input embeddings.
+        pe[:, 0::2] = torch.sin(position * div_term)  # (seq_len, embedding_dim/2)
+        pe[:, 1::2] = torch.cos(position * div_term)  # (seq_len, embedding_dim/2)
 
-        Returns:
-            - torch.Tensor: The output tensor after applying multi-head attention.
-        '''
+        return pe
+    
+    def forward(self,
+                x: torch.Tensor):
 
-        out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.fc(out)
-        return out
-
-class FeedForward(nn.Module):
-    '''
-    FeedForward Class:
-    - Implements the feed-forward neural network present in each transformer block.
-    - Consists of two linear layers with a GELU activation in between.
-    '''
-
-    def __init__(self, 
-                 embedding_dim: int, 
-                 intermediate_dim: int) -> None:
-        '''
-        Constructor for the FeedForward class.
-
-        Parameters:
-            - embedding_dim (int): The dimension of the input embeddings.
-            - intermediate_dim (int): The dimension of the intermediate layer.
-        '''
-
-        super().__init__()
-        self.l1 = nn.Linear(embedding_dim, intermediate_dim)
-        self.l2 = nn.Linear(intermediate_dim, embedding_dim)
-        self.gelu = nn.GELU()
-        self.dropout = nn.Dropout(0.1)
-
-    def forward(self, 
-                x: torch.Tensor) -> torch.Tensor:
-        '''
-        Forward pass for the FeedForward class.
-
-        Parameters:
-            - x (torch.Tensor): The input embeddings.
-
-        Returns:
-            - torch.Tensor: The output tensor after applying the feed-forward neural network.
-        '''
-
-        x = self.l1(x)
-        x = self.gelu(x)
-        x = self.l2(x)
-        x = self.dropout(x)
-        return x
+        _, L = x.size()
+        encoding = self.position_codes[:L]
+        
+        return self.embedding_layer(x) + encoding.to(x.device)
 
 class Decoder(nn.Module):
-    '''
-    Decoder Class:
-    - Represents a single transformer block.
-    - Consists of multi-head attention and feed-forward neural network with layer normalization.
-    '''
-
-    def __init__(self, 
-                 embedding_dim: int, 
-                 intermediate_dim: int,
-                 num_attention_heads: int) -> None:
-        '''
-        Constructor for the Decoder class.
-
-        Parameters:
-            - embedding_dim (int): The dimension of the input embeddings.
-            - intermediate_dim (int): The dimension of the intermediate layer.
-            - num_attention_heads (int): The number of attention heads.
-        '''
+    def __init__(self,
+                 config: GPTConfig) -> None:
 
         super().__init__()
-        self.l1 = nn.LayerNorm(embedding_dim)
-        self.l2 = nn.LayerNorm(embedding_dim)
-        self.attention = MultiHeadAttention(embedding_dim, num_attention_heads)
-        self.feed_forward = FeedForward(embedding_dim, intermediate_dim)
+
+        self.H = config.num_attn_heads
+        self.lnorm1 = nn.LayerNorm(config.embedding_dim)
+        
+        self.pre_mha = nn.Linear(config.embedding_dim, 3*config.embedding_dim)
+        self.att_dropout = nn.Dropout(config.dropout)
+        self.post_mha = nn.Linear(config.embedding_dim, config.embedding_dim)
+        self.posta_dropout = nn.Dropout(config.dropout)
+
+        self.lnorm2 = nn.LayerNorm(config.embedding_dim)
+
+        self.ffw = nn.Sequential(
+            nn.Linear(config.embedding_dim, config.intermediate_dim),
+            nn.Linear(config.intermediate_dim, config.embedding_dim),
+            nn.GELU(),
+            nn.Dropout(config.dropout)
+        )
 
     def forward(self,
-                x: torch.Tensor) -> torch.Tensor:
-        '''
-        Forward pass for the Decoder class.
+                x: torch.Tensor) -> None:  # B, L, D
 
-        Parameters:
-            - x (torch.Tensor): The input embeddings.
+        
+        out = self.lnorm1(x)
 
-        Returns:
-            - torch.Tensor: The output tensor after applying the decoder layer.
-        '''
+        qkv: torch.Tensor = self.pre_mha(out)  # B, L, 3*D
+        B, L, D3 = qkv.size()
+        qkv = qkv.view(B, L, self.H, D3//self.H)  # B, L, H, 3*D//H
+        qkv = qkv.permute(0, 2, 1, 3)  # B, H, L, 3*D//H
+        q, k, v = torch.chunk(qkv, 3, -1)  # 3x (B, H, L, D//H)
+        qkt = torch.einsum("bhld,bhmd->bhlm", q, k)  # B, H, L, L
+        qkt = qkt / q.size(-1)
+        qkt: torch.Tensor = self.att_dropout(qkt)
+        mask = torch.tril(torch.ones(L, L, dtype=bool)).to(x.device)
+        masked_qkt = qkt.masked_fill(mask=mask, value=-torch.inf)
+        masked_qkt = F.softmax(masked_qkt, dim=-1)  # B, H, L, L
+        out_attn = torch.einsum("bhlm,bhmd->bhld", masked_qkt, v)  # B, H, L, D//H
+        out_attn = out_attn.permute(0, 2, 1, 3).contiguous()  # B, L, H, D//H
+        out_attn = out_attn.view(B, L, -1)  # B, L, D
+        out_attn = self.posta_dropout(out_attn)
 
-        x = self.l1(x + self.attention(x))
-        x = self.l2(x + self.feed_forward(x))
-        return x
+        out_attn = out_attn + x  # B, L, D
+        out = self.lnorm2(out_attn)
+
+        out = self.ffw(out)  # B, L, D
+        out = out_attn + out  
+
+        return out  # B, L, D
