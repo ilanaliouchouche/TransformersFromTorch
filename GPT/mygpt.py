@@ -1,49 +1,40 @@
+# flake8: noqa
+
 from gpt_classes import *
 
-class MyGPT(nn.Module):
-  '''
-  MyGPT Class:
-  - This class represents the complete GPT model architecture.
-  - It initializes the embedding layer and a specified number of transformer decoder layers.
-  - During the forward pass, it applies the embeddings and passes the output through each decoder layer.
-  '''
+class GPT(nn.Module):
 
-  def __init__(self,
-               vocab: int = 50257,
-               embedding_dim: int = 768, 
-               position_size: int = 1024, 
-               n_layers: int = 12,
-               intermediate_dim: int = 3072, 
-               num_attention_heads: int = 12):
-    '''
-    Constructor for the MyGPT class.
+    def __init__(self,
+                 config: GPTConfig) -> None:
+        
+        super().__init__()
+        self.embedder = Embedder(config)
+        self.decoders = nn.ModuleList(
+            [Decoder(config) for _ in range(config.n_layers)]
+        )
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(config.embedding_dim),
+            nn.Linear(config.embedding_dim, config.vocab_size, bias=False)
+        )
 
-    Parameters:
-        - vocab (int): The size of the vocabulary.
-        - embedding_dim (int): The dimension of the embeddings.
-        - position_size (int): The maximum position size for the positional embeddings.
-        - n_layers (int): The number of transformer decoder layers.
-        - intermediate_dim (int): The dimension of the intermediate layer in the feed-forward neural network.
-        - num_attention_heads (int): The number of attention heads.
-    '''
+        self.apply(self.init_weights)
 
-    super().__init__()
-    self.embeddings = Embeddings(vocab, embedding_dim, position_size)
-    self.layers = nn.ModuleList([Decoder(embedding_dim, intermediate_dim, num_attention_heads) for _ in range(n_layers)])
+        self.classifier[1].weight = self.embedder.embedding_layer.weight
 
-  def forward(self, 
-              x : torch.Tensor) -> torch.Tensor:
-    '''
-    Forward pass for the MyGPT class.
+    def init_weights(self, module) -> None:
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    Parameters:
-        - x (torch.Tensor): The input IDs.
-
-    Returns:
-        - torch.Tensor: The hidden state after applying the GPT model.
-    '''
-    
-    x = self.embeddings(x)
-    for layer in self.layers:
-      x = layer(x)
-    return x
+    def forward(self,
+                x: torch.Tensor) -> torch.Tensor:  # B, L
+        
+        x = self.embedder(x)  # B, L, D
+        for layer in self.decoders:
+            x = layer(x)  # B, L ,D
+        x = self.classifier(x)  # B, L, V
+        
+        return x
