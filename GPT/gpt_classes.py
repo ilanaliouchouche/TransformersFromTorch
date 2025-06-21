@@ -10,6 +10,7 @@ class GPTConfig(object):
     num_attn_heads: int
 
 class Embedder(nn.Module):
+
     def __init__(self,
                  config: GPTConfig) -> None:
         super().__init__()
@@ -31,7 +32,7 @@ class Embedder(nn.Module):
         return pe
     
     def forward(self,
-                x: torch.Tensor):
+                x: torch.Tensor) torch.Tensor:
 
         _, L = x.size()
         encoding = self.position_codes[:L]
@@ -39,6 +40,7 @@ class Embedder(nn.Module):
         return self.embedding_layer(x) + encoding.to(x.device)
 
 class Decoder(nn.Module):
+
     def __init__(self,
                  config: GPTConfig) -> None:
 
@@ -62,7 +64,7 @@ class Decoder(nn.Module):
         )
 
     def forward(self,
-                x: torch.Tensor) -> None:  # B, L, D
+                x: torch.Tensor) -> torch.Tensor:  # B, L, D
 
         
         out = self.lnorm1(x)
