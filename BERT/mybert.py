@@ -1,4 +1,9 @@
 # flake8: noqa
+
+import torch
+from torch import nn
+from torch.nn import functional as F
+import math
 from bert_classes import *
 
 class BERT(nn.Module):
