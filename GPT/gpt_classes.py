@@ -64,9 +64,9 @@ class Decoder(nn.Module):
         )
 
     def forward(self,
-                x: torch.Tensor) -> torch.Tensor:  # B, L, D
+                x: torch.Tensor,  # B, L, D
+                attention_mask: torch.Tensor) -> torch.Tensor:  # B, L
 
-        
         out = self.lnorm1(x)
 
         qkv: torch.Tensor = self.pre_mha(out)  # B, L, 3*D
@@ -77,8 +77,9 @@ class Decoder(nn.Module):
         qkt = torch.einsum("bhld,bhmd->bhlm", q, k)  # B, H, L, L
         qkt = qkt / q.size(-1)
         qkt: torch.Tensor = self.att_dropout(qkt)
-        mask = torch.tril(torch.ones(L, L, dtype=bool)).to(x.device)
-        masked_qkt = qkt.masked_fill(mask=mask, value=-torch.inf)
+        mask = torch.tril(torch.ones(L, L, dtype=bool)).unsqueeze(0).unsqueeze(0).to(x.device)  # 1, 1, L, L
+        full_mask = attention_mask.unsqueeze(1).unsqueeze(1).to(x.device) & mask
+        masked_qkt = qkt.masked_fill(mask=~full_mask, value=-torch.inf)
         masked_qkt = F.softmax(masked_qkt, dim=-1)  # B, H, L, L
         out_attn = torch.einsum("bhlm,bhmd->bhld", masked_qkt, v)  # B, H, L, D//H
         out_attn = out_attn.permute(0, 2, 1, 3).contiguous()  # B, L, H, D//H
