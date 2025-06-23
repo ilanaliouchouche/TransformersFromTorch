@@ -32,7 +32,7 @@ class Embedder(nn.Module):
         return pe
     
     def forward(self,
-                x: torch.Tensor) torch.Tensor:
+                x: torch.Tensor) -> torch.Tensor:
 
         _, L = x.size()
         encoding = self.position_codes[:L]
