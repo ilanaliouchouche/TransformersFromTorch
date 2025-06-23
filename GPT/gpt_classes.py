@@ -80,7 +80,7 @@ class Decoder(nn.Module):
         qkv = qkv.permute(0, 2, 1, 3)  # B, H, L, 3*D//H
         q, k, v = torch.chunk(qkv, 3, -1)  # 3x (B, H, L, D//H)
         qkt = torch.einsum("bhld,bhmd->bhlm", q, k)  # B, H, L, L
-        qkt = qkt / q.size(-1)
+        qkt = qkt / math.sqrt(q.size(-1))
         qkt: torch.Tensor = self.att_dropout(qkt)
         mask = torch.tril(torch.ones(L, L, dtype=bool)).unsqueeze(0).unsqueeze(0).to(x.device)  # 1, 1, L, L
         full_mask = attention_mask.unsqueeze(1).unsqueeze(1).to(x.device) & mask
