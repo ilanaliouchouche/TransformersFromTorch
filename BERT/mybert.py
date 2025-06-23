@@ -1,57 +1,40 @@
+# flake8: noqa
 from bert_classes import *
 
-class MyBert(nn.Module):
-    '''
-    MyBert Class:
-    - This class represents the complete BERT model architecture.
-    - It initializes the embedding layer and a specified number of transformer encoder layers.
-    - During the forward pass, it applies the embeddings and passes the output through each encoder layer.
-    '''
+class BERT(nn.Module):
 
-    def __init__(self, 
-                 vocab: int = 30522, 
-                 embedding_dim: int = 768, 
-                 position_size: int = 512, 
-                 n_layers: int = 12, 
-                 intermediate_dim: int = 3072, 
-                 num_attention_heads: int = 12) -> None:
-        '''
-        Constructor for the MyBert class.
-
-        Parameters:
-            - vocab (int): The size of the vocabulary.
-            - embedding_dim (int): The dimension of the embeddings.
-            - position_size (int): The maximum position size for the positional embeddings.
-            - n_layers (int): The number of transformer encoder layers.
-            - intermediate_dim (int): The dimension of the intermediate layer in the feed-forward neural network.
-            - num_attention_heads (int): The number of attention heads.
-        '''
-
+    def __init__(self,
+                 config: BERTConfig) -> None:
+        
         super().__init__()
-        
-        self.embeddings = Embeddings(vocab, embedding_dim, position_size)
-        
-        self.layers = nn.ModuleList(
-            [Encoder(embedding_dim, intermediate_dim, num_attention_heads) for _ in range(n_layers)]
+        self.embedder = Embedder(config)
+        self.decoders = nn.ModuleList(
+            [Encoder(config) for _ in range(config.n_layers)]
+        )
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(config.embedding_dim),
+            nn.Linear(config.embedding_dim, config.vocab_size, bias=False)
         )
 
-    def forward(self, 
-                x: torch.Tensor) -> torch.Tensor:
-        '''
-        Forward pass for the MyBert class.
+        self.apply(self.init_weights)
 
-        Parameters:
-            - x (torch.Tensor): The input IDs.
+        self.classifier[1].weight = self.embedder.embedding_layer.weight
 
-        Returns:
-            - torch.Tensor: The hidden state after applying the BERT model.
-        '''
+    def init_weights(self, module) -> None:
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-        x = self.embeddings(x)
+    def forward(self,
+                x: torch.Tensor,  # B, L
+                attention_mask: torch.Tensor) -> torch.Tensor:  # B, L
         
-        for layer in self.layers:
-            x = layer(x)
+        x = self.embedder(x)  # B, L, D
+        for layer in self.decoders:
+            x = layer(x, attention_mask)  # B, L ,D
+        x = self.classifier(x)  # B, L, V
         
         return x
-
-
