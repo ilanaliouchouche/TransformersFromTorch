@@ -30,11 +30,12 @@ class GPT(nn.Module):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self,
-                x: torch.Tensor) -> torch.Tensor:  # B, L
+                x: torch.Tensor,  # B, L
+                attention_mask: torch.Tensor) -> torch.Tensor:  # B, L
         
         x = self.embedder(x)  # B, L, D
         for layer in self.decoders:
-            x = layer(x)  # B, L ,D
+            x = layer(x, attention_mask)  # B, L ,D
         x = self.classifier(x)  # B, L, V
         
         return x
